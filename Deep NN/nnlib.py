@@ -55,6 +55,20 @@ class nn:
     def init_weights(self,nodes,features):
         return np.random.randn(nodes,features)
     
+    #Creating batches for mini batch gradient descent
+    def batchify(self,X,y,batch_size):
+        m=X.shape[1]
+        n=m*batch_size
+        k=int(1/batch_size)
+        X_new,y_new,low,high=[],[],0,int(n)
+        for i in range(k-1):
+            X_new.append(X[:,low:high])
+            y_new.append(y[:,low:high])
+            low=high
+            high+=int(n)
+        X_new.append(X[:,low:])
+        return X_new,y_new
+    
     def __init__(self,nodes, activations):
         np.random.seed(0)
         self.nodes=nodes
@@ -63,10 +77,12 @@ class nn:
         self.act_func_der={'sigmoid':self.sigmoid_derivative,'tanh':self.tanh_derivative,'relu':self.relu_derivative,
                   'leaky_relu':self.leaky_relu_derivative}
     
-    def fit(self,X,y,alpha=0.1,epochs=1000):
+    def fit(self,X,y,alpha=0.1,epochs=10000,reg_param=0,batch_size=1):
         X,y,self.mean,self.var=self.scale(X,y)
         Layers_num=len(self.nodes)  #Number of Layers
         m=X.shape[1]    #Number of training examples
+        #Creating batches
+        X,y=self.batchify(X,y,batch_size)
         
         self.w=[0]   #Weight matrix
         self.b=[0]   #Bias matrix
@@ -98,8 +114,8 @@ class nn:
                 dw=(1/m)*np.dot(dz,a[layer-1].T)
                 db=(1/m)*np.sum(dz,axis=1,keepdims=True)
                 da=np.dot(self.w[layer].T,dz)
-                self.w[layer]-=alpha*dw
-                self.b[layer]-=alpha*db
+                self.w[layer]=(1-(alpha*reg_param)/m)*self.w[layer]-alpha*dw
+                self.b[layer]=(1-(alpha*reg_param)/m)*self.b[layer]-alpha*db
                 
     def predict(self,X):
         X=self.scale_transform(X,self.mean,self.var)
@@ -114,9 +130,8 @@ class nn:
         output[output<0.5]=0
         output[output>=0.5]=1
         return output.T
-            
-            
-            
+
+
 '''if __name__=='__main__':  
     #Importing the libraries
     import numpy as np
@@ -167,11 +182,10 @@ from sklearn.model_selection import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
 
 n=nn([8,4,1],['relu','relu','sigmoid'])
-n.fit(X_train,y_train,0.1,10000)
+n.fit(X_train,y_train)
 y_pred=n.predict(X_test)
 cm=confusion_matrix(y_test,y_pred)
 accuracy=(cm[0][0]+cm[1][1])/len(y_test)
 print('Accuracy=',accuracy)
 plt.plot(n.loss)
-    
-    
+plt.show()
