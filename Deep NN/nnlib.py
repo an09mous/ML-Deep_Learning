@@ -1,3 +1,6 @@
+import numpy as np
+import pandas as pd
+import copy
 class nn:
     #Scaling function
     def scale(self,X,y):
@@ -44,6 +47,15 @@ class nn:
         out[a<0]=c
         return out
     
+    #Softmax
+    def softmax(self,z):
+        t=np.exp(z)
+        out=t/sum(t)
+        return out
+    #Softmax derivative(Not actually derivative but helper function to find dz)
+    def softmax_derivative(self,y,a):
+        return a-y
+    
     #Loss function and its derivative
     def log_loss(self,y,a):
         return (-y *np.log(a+10**-8)-(1-y)*np.log(1 - a+10**-8)).mean()
@@ -73,16 +85,16 @@ class nn:
         np.random.seed(0)
         self.nodes=nodes
         self.activations=activations    
-        self.act_func={'sigmoid':self.sigmoid,'tanh':self.tanh,'relu':self.relu,'leaky_relu':self.leaky_relu}
+        self.act_func={'sigmoid':self.sigmoid,'tanh':self.tanh,'relu':self.relu,'leaky_relu':self.leaky_relu,'softmax':self.softmax}
         self.act_func_der={'sigmoid':self.sigmoid_derivative,'tanh':self.tanh_derivative,'relu':self.relu_derivative,
-                  'leaky_relu':self.leaky_relu_derivative}
+                  'leaky_relu':self.leaky_relu_derivative,'softmax':self.softmax_derivative}
     
     def fit(self,X,y,alpha=0.1,epochs=10000,reg_param=0,batch_size=1):
         X,y,self.mean,self.var=self.scale(X,y)
         Layers_num=len(self.nodes)  #Number of Layers
         m=X.shape[1]    #Number of training examples
         #Creating batches
-        X,y=self.batchify(X,y,batch_size)
+        #X,y=self.batchify(X,y,batch_size)
         
         self.w=[0]   #Weight matrix
         self.b=[0]   #Bias matrix
@@ -109,8 +121,11 @@ class nn:
             #Backward Propagation
             da=self.log_loss_derivative(y,a[-1])
             for layer in range(Layers_num,0,-1):
-                dg=self.act_func_der[self.activations[layer-1]]
-                dz=da*dg(z[layer])
+                if self.activations[layer-1]=='softmax':
+                    dz=self.softmax_derivative(y,a[layer])
+                else:
+                    dg=self.act_func_der[self.activations[layer-1]]
+                    dz=da*dg(z[layer])
                 dw=(1/m)*np.dot(dz,a[layer-1].T)
                 db=(1/m)*np.sum(dz,axis=1,keepdims=True)
                 da=np.dot(self.w[layer].T,dz)
@@ -127,65 +142,146 @@ class nn:
             a.append(self.act_func[self.activations[layer-1]](z[layer]))
         
         output=copy.deepcopy(a[-1])
-        output[output<0.5]=0
-        output[output>=0.5]=1
         return output.T
 
+'''=============================================================================================================================='''
+'''=============================================================================================================================='''
 
-'''if __name__=='__main__':  
-    #Importing the libraries
-    import numpy as np
+#Social Networking Ads Dataset
+def SocNet(): 
     import matplotlib.pyplot as plt
     from sklearn.metrics import confusion_matrix
     from sklearn.model_selection import train_test_split
-    import pandas as pd     
-    import copy
-    #Importing the Dataset
+
     dataset=pd.read_csv('Social_Network_Ads.csv')
     X=dataset.iloc[:,2:4].values
     y=dataset.iloc[:,[-1]].values
     
-    #Splitting the dataset into training and test set
     X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.25,random_state=0)
     
     n=nn([4,1],['relu','sigmoid'])
     n.fit(X_train,y_train,epochs=2000)
-    y_pred=n.predict(X_test)
+    y_pred=np.round(n.predict(X_test))
     cm=confusion_matrix(y_test,y_pred)
     accuracy=(cm[0][0]+cm[1][1])/len(y_test)
     print('Accuracy=',accuracy)
-    plt.plot(n.loss)'''
+    plt.plot(n.loss)
+    print('Confusion matrix: ',cm)
     
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
-import pandas as pd     
-import copy
+    
+#Churn Modelling Dataset
+def ChMod():
+    #Importing the libraries
+    from sklearn.metrics import confusion_matrix
+    from sklearn.model_selection import train_test_split
+    import matplotlib.pyplot as plt
+    
+    # Importing the dataset
+    dataset = pd.read_csv('Churn_Modelling.csv')
+    X = dataset.iloc[:, 3:13].values
+    y = dataset.iloc[:, 13].values
+    
+    # Encoding categorical data
+    from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+    labelencoder_X_1 = LabelEncoder()
+    X[:, 1] = labelencoder_X_1.fit_transform(X[:, 1])
+    labelencoder_X_2 = LabelEncoder()
+    X[:, 2] = labelencoder_X_2.fit_transform(X[:, 2])
+    onehotencoder = OneHotEncoder(categorical_features = [1])
+    X = onehotencoder.fit_transform(X).toarray()
+    X = X[:, 1:]
+    
+    # Splitting the dataset into the Training set and Test set
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
+    
+    n=nn([8,4,1],['relu','relu','sigmoid'])
+    n.fit(X_train,y_train)
+    y_pred=np.round(n.predict(X_test))
+    cm=confusion_matrix(y_test,y_pred)
+    accuracy=(cm[0][0]+cm[1][1])/len(y_test)
+    print('Accuracy=',accuracy)
+    plt.plot(n.loss)
+    plt.show()
+    print('Confusion matrix: ',cm)
 
-# Importing the dataset
-dataset = pd.read_csv('Churn_Modelling.csv')
-X = dataset.iloc[:, 3:13].values
-y = dataset.iloc[:, 13].values
 
-# Encoding categorical data
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-labelencoder_X_1 = LabelEncoder()
-X[:, 1] = labelencoder_X_1.fit_transform(X[:, 1])
-labelencoder_X_2 = LabelEncoder()
-X[:, 2] = labelencoder_X_2.fit_transform(X[:, 2])
-onehotencoder = OneHotEncoder(categorical_features = [1])
-X = onehotencoder.fit_transform(X).toarray()
-X = X[:, 1:]
+#Iris Dataset
+def Iris():
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import confusion_matrix, accuracy_score
+    from sklearn.preprocessing import OneHotEncoder
+    from sklearn import datasets
+    
+    #Importing the dataset
+    dataset=datasets.load_iris()
+    X=dataset.data
+    y=dataset.target.reshape(len(X),1)
+    
+    #Encoding categorial data
+    onehotencoder=OneHotEncoder()
+    y=onehotencoder.fit_transform(y).toarray()
+    
+    #Function to decode Categorial data
+    def OneHotDecoder(data):
+        return np.argmax(data,axis=1)
+    
+    #Fitting data into model
+    n=nn([3],['softmax'])
+    n.fit(X,y,epochs=100)
+    y_pred=n.predict(X)
+    y_pred=np.round(y_pred)
+    
+    #Decoding categorial data
+    y=np.array(OneHotDecoder(y))
+    y_pred=np.array(OneHotDecoder(y_pred))
+    
+    #Analysing the results
+    cm=confusion_matrix(y,y_pred)
+    a=accuracy_score(y,y_pred)
+    plt.plot(n.loss)
+    plt.show()
+    print('Confusion matrix: ',cm)
+    print('Accuracy=',a)
 
-# Splitting the dataset into the Training set and Test set
-from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
 
-n=nn([8,4,1],['relu','relu','sigmoid'])
-n.fit(X_train,y_train)
-y_pred=n.predict(X_test)
-cm=confusion_matrix(y_test,y_pred)
-accuracy=(cm[0][0]+cm[1][1])/len(y_test)
-print('Accuracy=',accuracy)
-plt.plot(n.loss)
-plt.show()
+#Wine Dataset
+def Wine():
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import confusion_matrix, accuracy_score
+    from sklearn.preprocessing import OneHotEncoder
+    from sklearn import datasets
+    
+    #Importing the dataset
+    dataset=datasets.load_wine()
+    X=dataset.data
+    y=dataset.target.reshape(len(X),1)
+    
+    #Encoding categorial data
+    onehotencoder=OneHotEncoder()
+    y=onehotencoder.fit_transform(y).toarray()
+    
+    #Function to decode Categorial data
+    def OneHotDecoder(data):
+        return np.argmax(data,axis=1)
+    
+    #Fitting data into model
+    n=nn([3],['softmax'])
+    n.fit(X,y,epochs=100)
+    y_pred=n.predict(X)
+    y_pred=np.round(y_pred)
+    
+    #Decoding categorial data
+    y=np.array(OneHotDecoder(y))
+    y_pred=np.array(OneHotDecoder(y_pred))
+    
+    #Analysing the results
+    cm=confusion_matrix(y,y_pred)
+    a=accuracy_score(y,y_pred)
+    plt.plot(n.loss)
+    plt.show()
+    print('Confusion matrix: ',cm)
+    print('Accuracy=',a)
+
+
+
+
